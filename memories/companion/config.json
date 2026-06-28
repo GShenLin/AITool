@@ -17,7 +17,9 @@
   "system_prompt": "",
   "mode": "chat",
   "tools": [],
-  "mcp_servers": [],
+  "mcp_servers": [
+        "aitools-companion"
+  ],
   "web_search": "disabled",
   "thinking": "disabled",
   "reasoning_effort": "high"
