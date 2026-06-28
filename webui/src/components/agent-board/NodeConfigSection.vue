@@ -336,6 +336,7 @@ watch(
       :available-tools="availableTools"
       :drop-target-key="dropFieldKey"
       :uploading-key="uploadingFieldKey"
+      :reset-key="node.id"
       enable-asset-drop
       @update-field="setField"
       @field-dragover="onFieldDragOver"

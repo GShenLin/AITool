@@ -18,6 +18,7 @@ import MobileLiveMessage from './MobileLiveMessage.vue'
 import MobileMessageText from './MobileMessageText.vue'
 import MobileNodeConfigDialog from './MobileNodeConfigDialog.vue'
 import MobileNodeListItem from './MobileNodeListItem.vue'
+import SettingsPage from '../components/SettingsPage.vue'
 import { useMobileWorkspace } from './useMobileWorkspace'
 import { buildMessageSignature, messageRoleClass } from './mobileMessageRender'
 
@@ -28,12 +29,14 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const attachments = ref<UploadedFileItem[]>([])
 const uploadingFiles = ref(false)
 const configOpen = ref(false)
+const settingsOpen = ref(false)
 const isRestarting = ref(false)
 const goalArmedByNode = ref<Record<string, boolean>>({})
 const expandedToolGroups = ref<Set<string>>(new Set())
 const SCROLL_STICK_THRESHOLD = 48
 
 const headerTitle = computed(() => {
+  if (settingsOpen.value) return 'Settings'
   if (workspace.view.value === 'pcs') return '选择 PC'
   if (workspace.view.value === 'graphs') return workspace.selectedPc.value?.name || '选择 Graph'
   if (workspace.view.value === 'nodes') return workspace.selectedGraph.value?.display_name || '选择节点'
@@ -240,6 +243,15 @@ async function openConfig() {
   })
 }
 
+function openSettings() {
+  if (workspace.view.value !== 'graphs') return
+  settingsOpen.value = true
+}
+
+function closeSettings() {
+  settingsOpen.value = false
+}
+
 async function clearMemory() {
   if (workspace.view.value !== 'chat' || !workspace.selectedNode.value) return
   const nodeId = String(workspace.selectedNode.value.id || '').trim()
@@ -300,25 +312,34 @@ onMounted(() => {
 <template>
   <div class="mobile-shell">
     <header class="mobile-header">
-      <button v-if="workspace.view.value === 'graphs'" class="icon-btn" type="button" aria-label="返回 PC" @click="workspace.backToPcs">&lt;</button>
+      <button v-if="settingsOpen" class="icon-btn" type="button" aria-label="Back" @click="closeSettings">&lt;</button>
+      <button v-else-if="workspace.view.value === 'graphs'" class="icon-btn" type="button" aria-label="返回 PC" @click="workspace.backToPcs">&lt;</button>
       <button v-else-if="workspace.view.value === 'nodes'" class="icon-btn" type="button" aria-label="返回 Graph" @click="workspace.backToGraphs">&lt;</button>
       <button v-else-if="workspace.view.value === 'chat'" class="icon-btn" type="button" aria-label="返回节点" @click="workspace.backToNodes">&lt;</button>
       <div v-else class="header-spacer"></div>
       <div class="header-title">{{ headerTitle }}</div>
       <div class="header-actions">
-        <button v-if="workspace.view.value === 'chat'" class="text-icon-btn danger" type="button" aria-label="Clear memory" @click="clearMemory">ClearMemory</button>
-        <button v-if="workspace.view.value === 'chat'" class="text-icon-btn" type="button" aria-label="打开节点配置" @click="openConfig">配置</button>
-        <button class="text-icon-btn restart-btn" type="button" :disabled="isRestarting" aria-label="Restart" @click="restartWorkspace">
+        <button v-if="!settingsOpen && workspace.view.value === 'graphs'" class="text-icon-btn" type="button" aria-label="Open settings" @click="openSettings">Settings</button>
+        <button v-if="!settingsOpen && workspace.view.value === 'chat'" class="text-icon-btn danger" type="button" aria-label="Clear memory" @click="clearMemory">ClearMemory</button>
+        <button v-if="!settingsOpen && workspace.view.value === 'chat'" class="text-icon-btn" type="button" aria-label="打开节点配置" @click="openConfig">配置</button>
+        <button v-if="!settingsOpen" class="text-icon-btn restart-btn" type="button" :disabled="isRestarting" aria-label="Restart" @click="restartWorkspace">
           {{ isRestarting ? 'Restarting...' : 'Restart' }}
         </button>
       </div>
     </header>
 
     <main class="mobile-main">
-      <div v-if="workspace.error.value" class="mobile-error">{{ workspace.error.value }}</div>
-      <div v-if="workspace.loading.value" class="loading-line">Loading...</div>
+      <SettingsPage
+        v-if="settingsOpen"
+        back-label="Back"
+        @back="closeSettings"
+        @providers-updated="workspace.refreshEditorCatalog"
+      />
+      <template v-else>
+        <div v-if="workspace.error.value" class="mobile-error">{{ workspace.error.value }}</div>
+        <div v-if="workspace.loading.value" class="loading-line">Loading...</div>
 
-      <section v-if="workspace.view.value === 'pcs'" class="mobile-list">
+        <section v-if="workspace.view.value === 'pcs'" class="mobile-list">
         <button v-for="pc in workspace.pcs.value" :key="pc.id" class="list-row pc-row" type="button" @click="workspace.selectPc(pc)">
           <span class="row-main">{{ pc.name }}</span>
           <span class="row-sub">{{ pc.instance_count }} instance</span>
@@ -349,7 +370,7 @@ onMounted(() => {
         />
       </section>
 
-      <section v-else class="chat-view">
+        <section v-else class="chat-view">
         <div class="node-summary">
           <span class="node-status" :class="workspace.selectedNode.value ? nodeStateClass(workspace.selectedNode.value) : 'state-idle'"></span>
           <span>{{ workspace.selectedNode.value ? nodeStateLabel(workspace.selectedNode.value) : '' }}</span>
@@ -426,7 +447,8 @@ onMounted(() => {
             <button type="submit" :disabled="workspace.sending.value || (!draft.trim() && attachments.length === 0)">发送</button>
           </div>
         </form>
-      </section>
+        </section>
+      </template>
     </main>
 
     <MobileNodeConfigDialog

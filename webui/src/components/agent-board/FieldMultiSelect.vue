@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import FieldMultiSelectOption from './FieldMultiSelectOption.vue'
 
 type OptionItem = {
@@ -33,6 +33,7 @@ const props = defineProps<{
   selectedValues: string[]
   emptyText: string
   searchQuery?: string
+  resetKey?: string
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +43,7 @@ const emit = defineEmits<{
 const selectedSet = computed(() => new Set(props.selectedValues.map((value) => String(value || '').trim()).filter(Boolean)))
 const searchText = computed(() => String(props.searchQuery || '').trim().toLowerCase())
 const hasSearch = computed(() => searchText.value.length > 0)
+const availableOpen = ref(false)
 const itemName = computed(() => {
   const emptyText = props.emptyText.toLowerCase()
   if (emptyText.includes('skill')) return 'skills'
@@ -90,6 +92,18 @@ const visibleOptionCount = computed(() => visibleSelectedOptions.value.length + 
 function compareOptions(a: DisplayOption, b: DisplayOption) {
   return a.title.localeCompare(b.title)
 }
+
+function onAvailableToggle(event: Event) {
+  if (hasSearch.value) return
+  availableOpen.value = (event.target as HTMLDetailsElement).open
+}
+
+watch(
+  () => props.resetKey,
+  () => {
+    availableOpen.value = false
+  },
+)
 
 function matchesSearch(option: DisplayOption) {
   if (!searchText.value) return true
@@ -233,7 +247,7 @@ function summarizeDependencies(value: unknown) {
         No {{ itemName }} enabled.
       </div>
 
-      <details class="multi-select-available" :open="hasSearch || selectedOptions.length === 0">
+      <details class="multi-select-available" :open="hasSearch || availableOpen" @toggle="onAvailableToggle">
         <summary>
           <span>Available</span>
           <span>{{ hasSearch ? visibleAvailableOptions.length : availableOptions.length }}</span>

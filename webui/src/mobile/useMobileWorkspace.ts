@@ -73,6 +73,10 @@ export function useMobileWorkspace() {
 
   async function loadEditorCatalog() {
     if (providers.value.length && availableTools.value.length) return
+    await refreshEditorCatalog()
+  }
+
+  async function refreshEditorCatalog() {
     const [nextProviders, nextTools] = await Promise.all([
       listProviders(),
       listTools(),
@@ -320,6 +324,7 @@ export function useMobileWorkspace() {
     clearSelectedNodeMemory,
     refreshCurrent,
     refreshNodeConfigs,
+    refreshEditorCatalog,
     backToPcs,
     backToGraphs,
     backToNodes,

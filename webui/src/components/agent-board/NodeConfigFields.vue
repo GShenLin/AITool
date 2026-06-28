@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { ProviderInfo } from '../../api'
 import { ASSET_FIELD_KEYS } from '../../composables/droppedPaths'
 import {
@@ -43,10 +43,12 @@ const props = withDefaults(defineProps<{
   dropTargetKey?: string
   uploadingKey?: string
   enableAssetDrop?: boolean
+  resetKey?: string
 }>(), {
   dropTargetKey: '',
   uploadingKey: '',
   enableAssetDrop: false,
+  resetKey: '',
 })
 
 const emit = defineEmits<{
@@ -257,6 +259,13 @@ function getReasoningEffortValue() {
   return props.fields.reasoning_effort ?? 'high'
 }
 
+watch(
+  () => props.resetKey,
+  () => {
+    multiSelectSearchQueries.value = {}
+  },
+)
+
 </script>
 
 <template>
@@ -346,6 +355,7 @@ function getReasoningEffortValue() {
         :selected-values="getMultiSelectValue(key)"
         :empty-text="getMultiSelectEmptyText(key)"
         :search-query="getMultiSelectSearchQuery(key)"
+        :reset-key="`${resetKey}:${key}`"
         @toggle="toggleMultiSelectOption(key, $event)"
       />
 

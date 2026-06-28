@@ -13,6 +13,7 @@ from .node_cancellation import NodeCancellationRegistry
 from .node_live_output import NodeLiveOutputStore
 from .node_config_service import RUNTIME_STATE_FIELDS
 from .remote_api import RemoteApiDomain
+from .settings_api import SettingsApiDomain
 from .user_interaction_api import UserInteractionApiDomain
 from src.channels.service import ChannelService
 
@@ -53,6 +54,7 @@ class BackendCore:
         self.graph_api = GraphApiDomain(self, self.graph_runtime)
         self.mobile_api = MobileApiDomain(self, self.graph_runtime)
         self.remote_api = RemoteApiDomain(self)
+        self.settings_api = SettingsApiDomain(self)
         self.user_interaction_api = UserInteractionApiDomain(self)
         self.system_api = SystemApiDomain(self, self.agent_domain)
 

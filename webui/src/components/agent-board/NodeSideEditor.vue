@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { type MessageEnvelope, type ResourceKind } from '../../api'
 import { resolveDroppedPaths, resolvePastedImagePaths } from '../../composables/droppedPaths'
 import { useGlobalState } from '../../composables/useGlobalState'
 import { AgentBoardKey } from './context'
 import NodeConfigSection from './NodeConfigSection.vue'
 import NodeEditorInputSection from './NodeEditorInputSection.vue'
+import { useNodeSideEditorPanel } from './useNodeSideEditorPanel'
 
 const injected = inject(AgentBoardKey, null)
 if (!injected) {
@@ -22,27 +23,7 @@ const {
   availableTools,
 } = useGlobalState()
 
-const CARD_WIDTH = 200
-const PANEL_DEFAULT_WIDTH = 360
-const PANEL_DEFAULT_HEIGHT = 620
-const PANEL_MIN_WIDTH = 320
-const PANEL_MAX_WIDTH = 760
-const PANEL_MIN_HEIGHT = 360
-const PANEL_GAP = 28
-const PANEL_CANVAS_MARGIN = 20
-
-type ResizeHandle = 'right' | 'left' | 'bottom' | 'bottom-right' | 'bottom-left'
-type ResizeSession = {
-  handle: ResizeHandle
-  startX: number
-  startY: number
-  startWidth: number
-  startHeight: number
-}
-
 const isUploadingFiles = ref(false)
-const panelSize = ref({ width: PANEL_DEFAULT_WIDTH, height: PANEL_DEFAULT_HEIGHT })
-const resizeSession = ref<ResizeSession | null>(null)
 const goalArmedByNode = ref<Record<string, boolean>>({})
 
 const selectedNode = computed(() => {
@@ -50,6 +31,17 @@ const selectedNode = computed(() => {
   if (!id) return null
   return ctx.nodes.value.find((item) => item.id === id) || null
 })
+
+const {
+  panelStyle,
+  panelPlacement,
+  horizontalResizeHandle,
+  cornerResizeHandle,
+  isResizingPanel,
+  isDraggingPanel,
+  startPanelResize,
+  startPanelDrag,
+} = useNodeSideEditorPanel(ctx, selectedNode)
 
 const selectedConfig = computed(() => {
   const id = selectedNode.value?.id
@@ -85,112 +77,6 @@ const goalTitle = computed(() => {
   if (!isAgentNode.value) return 'Goal mode is available on Agent nodes'
   return goalActive.value ? 'Disable goal mode' : 'Enable goal mode'
 })
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
-}
-
-const boundedPanelSize = computed(() => {
-  const maxWidth = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, ctx.canvasWidth.value - PANEL_CANVAS_MARGIN * 2))
-  const maxHeight = Math.max(PANEL_MIN_HEIGHT, ctx.canvasHeight.value - PANEL_CANVAS_MARGIN * 2)
-  return {
-    width: clamp(panelSize.value.width, PANEL_MIN_WIDTH, maxWidth),
-    height: clamp(panelSize.value.height, PANEL_MIN_HEIGHT, maxHeight),
-  }
-})
-
-const panelPlacement = computed<'right' | 'left'>(() => {
-  const node = selectedNode.value
-  if (!node) return 'right'
-  const width = boundedPanelSize.value.width
-  return node.ui.x + CARD_WIDTH + PANEL_GAP + width <= ctx.canvasWidth.value - PANEL_CANVAS_MARGIN ? 'right' : 'left'
-})
-
-const panelStyle = computed(() => {
-  const node = selectedNode.value
-  if (!node) return { display: 'none' }
-  const { width, height } = boundedPanelSize.value
-  const preferRight = panelPlacement.value === 'right'
-  const left = preferRight
-    ? node.ui.x + CARD_WIDTH + PANEL_GAP
-    : Math.max(0, node.ui.x - width - PANEL_GAP)
-  const maxTop = Math.max(0, ctx.canvasHeight.value - height)
-  const top = Math.max(0, Math.min(node.ui.y, maxTop))
-  return {
-    left: `${left}px`,
-    top: `${top}px`,
-    width: `${width}px`,
-    height: `${height}px`,
-  }
-})
-
-const horizontalResizeHandle = computed<ResizeHandle>(() => (panelPlacement.value === 'right' ? 'right' : 'left'))
-const cornerResizeHandle = computed<ResizeHandle>(() => (panelPlacement.value === 'right' ? 'bottom-right' : 'bottom-left'))
-const isResizingPanel = computed(() => resizeSession.value !== null)
-
-function resizeCursor(handle: ResizeHandle) {
-  if (handle === 'bottom') return 'ns-resize'
-  if (handle === 'left' || handle === 'right') return 'ew-resize'
-  if (handle === 'bottom-left') return 'nesw-resize'
-  return 'nwse-resize'
-}
-
-function stopPanelResize() {
-  if (!resizeSession.value) return
-  resizeSession.value = null
-  window.removeEventListener('pointermove', onPanelResizeMove)
-  window.removeEventListener('pointerup', stopPanelResize)
-  window.removeEventListener('blur', stopPanelResize)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-}
-
-function onPanelResizeMove(event: PointerEvent) {
-  const session = resizeSession.value
-  if (!session) return
-  const scale = ctx.canvasScale.value || 1
-  const dx = (event.clientX - session.startX) / scale
-  const dy = (event.clientY - session.startY) / scale
-  let nextWidth = session.startWidth
-  let nextHeight = session.startHeight
-
-  if (session.handle === 'right' || session.handle === 'bottom-right') {
-    nextWidth = session.startWidth + dx
-  } else if (session.handle === 'left' || session.handle === 'bottom-left') {
-    nextWidth = session.startWidth - dx
-  }
-
-  if (session.handle === 'bottom' || session.handle === 'bottom-right' || session.handle === 'bottom-left') {
-    nextHeight = session.startHeight + dy
-  }
-
-  const maxWidth = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, ctx.canvasWidth.value - PANEL_CANVAS_MARGIN * 2))
-  const maxHeight = Math.max(PANEL_MIN_HEIGHT, ctx.canvasHeight.value - PANEL_CANVAS_MARGIN * 2)
-  panelSize.value = {
-    width: clamp(nextWidth, PANEL_MIN_WIDTH, maxWidth),
-    height: clamp(nextHeight, PANEL_MIN_HEIGHT, maxHeight),
-  }
-  event.preventDefault()
-}
-
-function startPanelResize(handle: ResizeHandle, event: PointerEvent) {
-  if (event.button !== 0) return
-  event.preventDefault()
-  event.stopPropagation()
-  const size = boundedPanelSize.value
-  resizeSession.value = {
-    handle,
-    startX: event.clientX,
-    startY: event.clientY,
-    startWidth: size.width,
-    startHeight: size.height,
-  }
-  document.body.style.cursor = resizeCursor(handle)
-  document.body.style.userSelect = 'none'
-  window.addEventListener('pointermove', onPanelResizeMove)
-  window.addEventListener('pointerup', stopPanelResize)
-  window.addEventListener('blur', stopPanelResize)
-}
 
 function resetEditorInput() {
   nodeEditorInputText.value = ''
@@ -383,29 +269,19 @@ watch(
   { immediate: true },
 )
 
-watch(
-  boundedPanelSize,
-  (size) => {
-    if (size.width !== panelSize.value.width || size.height !== panelSize.value.height) {
-      panelSize.value = size
-    }
-  },
-)
-
-onBeforeUnmount(stopPanelResize)
 </script>
 
 <template>
   <aside
     v-if="selectedNode"
     class="node-side-editor"
-    :class="{ resizing: isResizingPanel }"
+    :class="{ resizing: isResizingPanel, dragging: isDraggingPanel }"
     :style="panelStyle"
     @pointerdown.stop
     @click.stop
     @dragover.prevent
   >
-    <div class="editor-head">
+    <div class="editor-head" @pointerdown="startPanelDrag">
       <div class="editor-title-wrap">
         <div class="editor-title">{{ selectedNode.name }}</div>
         <div class="editor-sub">{{ selectedNode.typeId }} / {{ selectedNode.id }}</div>
@@ -472,7 +348,8 @@ onBeforeUnmount(stopPanelResize)
   isolation: isolate;
 }
 
-.node-side-editor.resizing {
+.node-side-editor.resizing,
+.node-side-editor.dragging {
   transition: none;
 }
 
@@ -481,6 +358,8 @@ onBeforeUnmount(stopPanelResize)
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  cursor: move;
+  user-select: none;
 }
 
 .editor-head,
